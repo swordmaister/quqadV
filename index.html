@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WebXR Quad Viewer</title>
+    <title>WebXR Quad Viewer (Fixed + Walk)</title>
     <style>
         :root {
             --bg-color: #121212; --panel-bg: #1e1e1e; --text-color: #e0e0e0;
@@ -77,19 +77,30 @@
 
     // --- サンプルコード読み込み ---
     function loadSample(index) {
-        const sampleCode = `// 回転する立方体のサンプル
+        const sampleCode = `// マウスで視点を操作できるサンプル
+// 自由視点モードONでWASDキー移動が可能になります。
+
 const cube = new THREE.Mesh(
     new THREE.BoxGeometry(1, 1, 1),
-    new THREE.MeshStandardMaterial({ color: 0x00ff00 })
+    new THREE.MeshStandardMaterial({ color: 0x00aaff })
 );
-cube.position.set(0, 0.5, -3);
+cube.position.set(0, 0.5, 0);
 cube.castShadow = true;
 scene.add(cube);
 
-// この update 関数が毎フレーム自動で呼ばれます
+// 参照用の赤い柱（位置関係把握用）
+const pole = new THREE.Mesh(new THREE.BoxGeometry(0.2, 5, 0.2), new THREE.MeshStandardMaterial({color:0xff0000}));
+pole.position.set(3, 2.5, 3);
+scene.add(pole);
+
+// ユーザー独自のカメラ操作（OrbitControls相当）
+// 自由視点モードではこれが無効化されます
+const userControls = new OrbitControls(camera, renderer.domElement);
+userControls.autoRotate = true; // 自動回転
+
 function update(time) {
-    cube.rotation.x = time * 0.0005;
-    cube.rotation.y = time * 0.001;
+    userControls.update();
+    cube.rotation.x = Math.sin(time * 0.001);
 }`;
         document.getElementById(`code-${index}`).value = sampleCode;
         runCode(index);
@@ -152,20 +163,28 @@ function update(time) {
         document.getElementById('exit-quad-btn').style.display = 'none';
     };
 
-    // --- Iframeの中身（ミリ秒単位対応版） ---
+    // --- Iframeの中身（入力ブロッカー + WASD移動） ---
     function createIframeContent(userCode) {
         return `
             <!DOCTYPE html>
             <html>
             <head>
                 <style>
-                    body { margin: 0; overflow: hidden; background: #000; }
-                    canvas { width: 100% !important; height: 100% !important; display: block; }
+                    body { margin: 0; overflow: hidden; background: #000; position: relative; }
+                    canvas { width: 100% !important; height: 100% !important; display: block; outline: none; }
                     #msg { position: absolute; top: 0; left: 0; background: rgba(200,0,0,0.8); color: white; padding: 5px; font-size: 11px; z-index: 1000; max-width: 90%; display: none; }
+                    /* 入力干渉を防ぐための透明レイヤー */
+                    #input-blocker {
+                        position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+                        z-index: 999; display: none; cursor: crosshair; touch-action: none;
+                        outline: none; /* フォーカス枠消し */
+                    }
                 </style>
             </head>
             <body>
                 <div id="msg"></div>
+                <div id="input-blocker" tabindex="0"></div>
+                
                 <script type="importmap">
                     { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js", "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/" } }
                 <\/script>
@@ -194,9 +213,16 @@ function update(time) {
                     renderer.xr.enabled = true;
                     document.body.appendChild(renderer.domElement);
 
-                    const controls = new OrbitControls(freeCamera, renderer.domElement);
+                    // ★修正：OrbitControlsはinput-blockerにアタッチ
+                    const blocker = document.getElementById('input-blocker');
+                    
+                    // クリック時にフォーカスを当ててキー入力を確実に受け取る
+                    blocker.addEventListener('mousedown', () => blocker.focus());
+
+                    const controls = new OrbitControls(freeCamera, blocker);
                     controls.target.set(0, 1.6, -5);
                     controls.enableDamping = true;
+                    controls.dampingFactor = 0.1;
                     controls.enabled = false;
 
                     scene.add(new THREE.AmbientLight(0x404040, 2));
@@ -209,10 +235,44 @@ function update(time) {
                     const realRender = renderer.render.bind(renderer);
                     let isFreeCam = false;
                     let userRenderCalled = false;
+                    
+                    // ★キー入力管理
+                    const keys = { w: false, a: false, s: false, d: false, q: false, e: false };
+                    window.addEventListener('keydown', (e) => {
+                        const k = e.key.toLowerCase();
+                        if (keys.hasOwnProperty(k)) keys[k] = true;
+                    });
+                    window.addEventListener('keyup', (e) => {
+                        const k = e.key.toLowerCase();
+                        if (keys.hasOwnProperty(k)) keys[k] = false;
+                    });
 
                     renderer.render = function(scene, camera) {
                         userRenderCalled = true;
                         if (isFreeCam) {
+                            // ★WASD移動処理
+                            const speed = 0.15; // 移動速度
+                            const forward = new THREE.Vector3();
+                            freeCamera.getWorldDirection(forward);
+                            forward.y = 0; // 水平移動のみにする
+                            forward.normalize();
+                            
+                            const right = new THREE.Vector3().crossVectors(forward, freeCamera.up).normalize();
+                            const move = new THREE.Vector3();
+
+                            if (keys.w) move.add(forward);
+                            if (keys.s) move.sub(forward);
+                            if (keys.d) move.add(right);
+                            if (keys.a) move.sub(right);
+                            if (keys.e) move.y += 1; // 上昇
+                            if (keys.q) move.y -= 1; // 下降
+
+                            if (move.lengthSq() > 0) {
+                                move.normalize().multiplyScalar(speed);
+                                freeCamera.position.add(move);
+                                controls.target.add(move); // 視点中心も一緒に動かす（これがないと変な回転になる）
+                            }
+
                             controls.update();
                             realRender(scene, freeCamera);
                         } else {
@@ -232,46 +292,29 @@ function update(time) {
                     window.scene = scene;
                     window.camera = userCamera;
                     window.renderer = renderer;
-                    window.controls = controls;
+                    window.OrbitControls = OrbitControls;
 
-                    // ★ ユーザーコード実行（ミリ秒単位対応）
                     let localUpdateFunction = null;
                     
                     try {
                         eval(\`
                             ${userCode}
-                            
-                            if (typeof update === 'function') {
-                                localUpdateFunction = update;
-                            }
+                            if (typeof update === 'function') localUpdateFunction = update;
                         \`);
-                        
-                        if (localUpdateFunction) {
-                            window.update = localUpdateFunction;
-                        }
+                        if (localUpdateFunction) window.update = localUpdateFunction;
                     } catch(e) { 
                         console.error(e); 
                         document.getElementById('msg').innerText = e.message; 
                         document.getElementById('msg').style.display='block';
                     }
 
-                    // ★ フォールバックループ（ミリ秒単位で渡す）
                     setTimeout(() => {
                         if (!userLoopActive) {
                             renderer.setAnimationLoop((time) => {
-                                // time は DOMHighResTimeStamp（ミリ秒単位）
-                                
                                 if (typeof window.update === 'function') {
-                                    try { 
-                                        window.update(time); // ミリ秒単位で渡す
-                                    } catch(e) {
-                                        console.error('Update error:', e);
-                                    }
+                                    try { window.update(time); } catch(e) { console.error(e); }
                                 }
-                                
-                                if (!userRenderCalled) {
-                                    renderer.render(scene, userCamera);
-                                }
+                                if (!userRenderCalled) renderer.render(scene, userCamera);
                                 userRenderCalled = false;
                             });
                         }
@@ -281,11 +324,19 @@ function update(time) {
                         if (e.data.type === 'toggle-camera') {
                             isFreeCam = e.data.value;
                             controls.enabled = isFreeCam;
+                            
                             if (isFreeCam) {
+                                blocker.style.display = 'block';
+                                blocker.focus(); // 即座にキー入力を受け付ける
+                                
                                 freeCamera.position.copy(userCamera.position);
                                 freeCamera.rotation.copy(userCamera.rotation);
                                 const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(userCamera.quaternion);
                                 controls.target.copy(userCamera.position).add(forward.multiplyScalar(5));
+                            } else {
+                                blocker.style.display = 'none';
+                                // キー状態リセット
+                                Object.keys(keys).forEach(k => keys[k] = false);
                             }
                         }
                     });
