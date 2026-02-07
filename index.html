@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WebXR Quad Viewer (v5: Robust)</title>
+    <title>WebXR Quad Viewer</title>
     <style>
         :root {
             --bg-color: #121212; --panel-bg: #1e1e1e; --text-color: #e0e0e0;
@@ -18,7 +18,7 @@
         .panel { background: var(--panel-bg); display: flex; flex-direction: column; position: relative; min-width: 0; min-height: 0; }
         .panel.fullscreen { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 1000; }
         
-        .toolbar { display: flex; gap: 6px; padding: 6px; background: #252526; border-bottom: 1px solid var(--border-color); }
+        .toolbar { display: flex; gap: 6px; padding: 6px; background: #252526; border-bottom: 1px solid var(--border-color); flex-wrap: wrap; }
         .toolbar button { background: #333; color: #ddd; border: 1px solid #444; padding: 4px 10px; border-radius: 3px; cursor: pointer; font-size: 11px; }
         .toolbar button:hover { background: #444; }
         .toolbar button.btn-run { background: var(--accent-color); color: #fff; border-color: var(--accent-color); }
@@ -38,7 +38,7 @@
 <body>
 
 <header>
-    <h1>WebXR Quad Viewer (v5)</h1>
+    <h1>WebXR Quad Viewer</h1>
     <button id="toggle-quad-view">WebXR Quad View</button>
 </header>
 
@@ -57,6 +57,7 @@
             <div class="toolbar">
                 <span style="color:#666; font-size:10px; margin-right:auto; align-self:center;">#${i+1}</span>
                 <button class="btn-run" onclick="runCode(${i})">▶ 実行</button>
+                <button onclick="loadSample(${i})">📝 サンプル</button>
                 <button onclick="pasteCode(${i})">📋 ペースト</button>
                 <button onclick="copyCode(${i})">📑 コピー</button>
                 <button id="btn-cam-${i}" class="btn-cam" onclick="toggleCamera(${i})">📷 自由視点: OFF</button>
@@ -64,7 +65,7 @@
             </div>
             <div class="workspace">
                 <div class="editor-container">
-                    <textarea id="code-${i}" placeholder="// ここにコードをペースト"></textarea>
+                    <textarea id="code-${i}" placeholder="// ここにコードをペースト または「サンプル」ボタンでテストコード読込"></textarea>
                 </div>
                 <div class="preview-container">
                     <iframe id="frame-${i}"></iframe>
@@ -74,8 +75,27 @@
         container.appendChild(panel);
     }
 
-    // --- 機能実装 ---
+    // --- サンプルコード読み込み ---
+    function loadSample(index) {
+        const sampleCode = `// 回転する立方体のサンプル
+const cube = new THREE.Mesh(
+    new THREE.BoxGeometry(1, 1, 1),
+    new THREE.MeshStandardMaterial({ color: 0x00ff00 })
+);
+cube.position.set(0, 0.5, -3);
+cube.castShadow = true;
+scene.add(cube);
 
+// この update 関数が毎フレーム自動で呼ばれます
+window.update = function(time) {
+    cube.rotation.x = time * 0.5;
+    cube.rotation.y = time;
+};`;
+        document.getElementById(`code-${index}`).value = sampleCode;
+        runCode(index);
+    }
+
+    // --- 機能実装 ---
     function runCode(index) {
         const textarea = document.getElementById(`code-${index}`);
         const frame = document.getElementById(`frame-${index}`);
@@ -132,7 +152,7 @@
         document.getElementById('exit-quad-btn').style.display = 'none';
     };
 
-    // --- Iframeの中身（修正版） ---
+    // --- Iframeの中身 ---
     function createIframeContent(userCode) {
         return `
             <!DOCTYPE html>
@@ -141,7 +161,7 @@
                 <style>
                     body { margin: 0; overflow: hidden; background: #000; }
                     canvas { width: 100% !important; height: 100% !important; display: block; }
-                    #msg { position: absolute; top: 0; left: 0; background: rgba(200,0,0,0.8); color: white; padding: 5px; font-size: 11px; display: none; }
+                    #msg { position: absolute; top: 0; left: 0; background: rgba(200,0,0,0.8); color: white; padding: 5px; font-size: 11px; z-index: 1000; max-width: 90%; display: none; }
                 </style>
             </head>
             <body>
@@ -153,7 +173,11 @@
                     import * as THREE from 'three';
                     import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-                    window.onerror = (m) => { const e = document.getElementById('msg'); e.style.display='block'; e.innerText='Error: '+m; };
+                    window.onerror = (m) => { 
+                        const e = document.getElementById('msg'); 
+                        e.style.display='block'; 
+                        e.innerText='Error: '+m; 
+                    };
 
                     const scene = new THREE.Scene();
                     scene.background = new THREE.Color(0x111111);
@@ -209,16 +233,31 @@
                     window.camera = userCamera;
                     window.renderer = renderer;
 
-                    // ★ ユーザーコードを実行
+                    // ユーザーコード実行
                     try {
-                        ${userCode}
+                        const userFunction = new Function('THREE', 'scene', 'camera', 'renderer', 'window', \`
+                            ${userCode}
+                            
+                            // もし update 関数がローカルで定義されていたら、それを返す
+                            if (typeof update === 'function') {
+                                return update;
+                            }
+                            return null;
+                        \`);
+                        
+                        const localUpdate = userFunction(THREE, scene, userCamera, renderer, window);
+                        
+                        // ローカルの update を window.update に登録
+                        if (localUpdate && typeof window.update !== 'function') {
+                            window.update = localUpdate;
+                        }
                     } catch(e) { 
                         console.error(e); 
                         document.getElementById('msg').innerText = e.message; 
-                        document.getElementById('msg').style.display='block'; 
+                        document.getElementById('msg').style.display='block';
                     }
 
-                    // ★ フォールバックループ (ユーザーコード実行後に判定)
+                    // フォールバックループ
                     setTimeout(() => {
                         if (!userLoopActive) {
                             const clock = new THREE.Clock();
@@ -226,7 +265,6 @@
                             renderer.setAnimationLoop(() => {
                                 const time = clock.getElapsedTime();
                                 
-                                // グローバルスコープの update 関数を探す
                                 if (typeof window.update === 'function') {
                                     try { 
                                         window.update(time); 
@@ -235,14 +273,13 @@
                                     }
                                 }
                                 
-                                // ユーザーが render を呼んでいない場合のみ描画
                                 if (!userRenderCalled) {
                                     renderer.render(scene, userCamera);
                                 }
-                                userRenderCalled = false; // 次フレーム用にリセット
+                                userRenderCalled = false;
                             });
                         }
-                    }, 100); // ユーザーコードの初期化を待つ
+                    }, 200);
 
                     window.addEventListener('message', (e) => {
                         if (e.data.type === 'toggle-camera') {
