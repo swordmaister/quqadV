@@ -3,94 +3,43 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WebXR Three.js Quad Viewer (v4: Free Cam)</title>
+    <title>WebXR Quad Viewer (v5: Robust)</title>
     <style>
         :root {
-            --bg-color: #121212;
-            --panel-bg: #1e1e1e;
-            --text-color: #e0e0e0;
-            --accent-color: #4caf50;
-            --warn-color: #ff9800;
-            --border-color: #333;
-            --header-height: 50px;
+            --bg-color: #121212; --panel-bg: #1e1e1e; --text-color: #e0e0e0;
+            --accent-color: #4caf50; --warn-color: #ff9800; --border-color: #333;
         }
-
-        body {
-            margin: 0; padding: 0;
-            background-color: var(--bg-color); color: var(--text-color);
-            font-family: 'Segoe UI', sans-serif;
-            height: 100vh; display: flex; flex-direction: column; overflow: hidden;
-        }
-
-        header {
-            height: var(--header-height); display: flex; align-items: center; justify-content: space-between;
-            padding: 0 20px; background-color: #000; border-bottom: 1px solid var(--border-color);
-        }
-
-        h1 { font-size: 18px; margin: 0; }
+        body { margin: 0; background: var(--bg-color); color: var(--text-color); font-family: sans-serif; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
         
-        .global-controls button {
-            background-color: #2196F3; color: white; border: none; padding: 8px 16px;
-            border-radius: 4px; cursor: pointer; font-weight: bold;
-        }
-        .global-controls button:hover { background-color: #1976D2; }
-
-        #main-container {
-            flex: 1; display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr;
-            gap: 2px; background-color: var(--border-color);
-        }
-
-        .panel {
-            background-color: var(--panel-bg); display: flex; flex-direction: column;
-            position: relative; min-width: 0; min-height: 0;
-        }
-        .panel.fullscreen {
-            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 1000;
-        }
-
-        .toolbar {
-            display: flex; gap: 8px; padding: 6px; background-color: #252526;
-            border-bottom: 1px solid var(--border-color); align-items: center;
-        }
-        .toolbar button {
-            background-color: #333; color: #ddd; border: 1px solid #444;
-            padding: 4px 10px; border-radius: 3px; cursor: pointer; font-size: 12px;
-            display: flex; align-items: center; gap: 4px;
-        }
-        .toolbar button:hover { background-color: #444; }
-        .toolbar button.btn-run { background-color: var(--accent-color); color: white; border-color: var(--accent-color); }
+        header { height: 50px; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; background: #000; border-bottom: 1px solid var(--border-color); }
+        h1 { font-size: 16px; margin: 0; }
         
-        /* Camera Toggle Active State */
-        .toolbar button.btn-cam.active {
-            background-color: var(--warn-color); color: #000; border-color: var(--warn-color); font-weight: bold;
-        }
-
-        .workspace { flex: 1; display: flex; height: 100%; overflow: hidden; }
+        #main-container { flex: 1; display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 2px; background: var(--border-color); }
+        .panel { background: var(--panel-bg); display: flex; flex-direction: column; position: relative; min-width: 0; min-height: 0; }
+        .panel.fullscreen { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 1000; }
+        
+        .toolbar { display: flex; gap: 6px; padding: 6px; background: #252526; border-bottom: 1px solid var(--border-color); }
+        .toolbar button { background: #333; color: #ddd; border: 1px solid #444; padding: 4px 10px; border-radius: 3px; cursor: pointer; font-size: 11px; }
+        .toolbar button:hover { background: #444; }
+        .toolbar button.btn-run { background: var(--accent-color); color: #fff; border-color: var(--accent-color); }
+        .toolbar button.btn-cam.active { background: var(--warn-color); color: #000; font-weight: bold; }
+        
+        .workspace { flex: 1; display: flex; height: 100%; }
         .editor-container { flex: 1; display: flex; flex-direction: column; border-right: 1px solid var(--border-color); }
-        
-        textarea {
-            flex: 1; background-color: #1e1e1e; color: #d4d4d4; border: none; padding: 10px;
-            font-family: monospace; font-size: 13px; resize: none; outline: none; white-space: pre;
-        }
-
-        .preview-container { flex: 1; background-color: #000; position: relative; }
+        textarea { flex: 1; background: #1e1e1e; color: #d4d4d4; border: none; padding: 10px; font-family: monospace; font-size: 12px; resize: none; outline: none; }
+        .preview-container { flex: 1; background: #000; position: relative; }
         iframe { width: 100%; height: 100%; border: none; display: block; }
 
         body.mode-quad-anim .editor-container, body.mode-quad-anim .toolbar { display: none !important; }
-        #exit-quad-btn {
-            display: none; position: fixed; bottom: 20px; right: 20px; z-index: 2000;
-            background-color: rgba(255, 68, 68, 0.9); color: white; padding: 10px 20px;
-            border: none; border-radius: 20px; cursor: pointer;
-        }
+        #exit-quad-btn { display: none; position: fixed; bottom: 20px; right: 20px; z-index: 2000; background: #d32f2f; color: white; padding: 10px 20px; border: none; border-radius: 20px; cursor: pointer; }
+        #toggle-quad-view { background: #2196F3; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; }
     </style>
 </head>
 <body>
 
 <header>
-    <h1>WebXR Quad Viewer (v4: Free Camera Control)</h1>
-    <div class="global-controls">
-        <button id="toggle-quad-view">WebXR Quad View</button>
-    </div>
+    <h1>WebXR Quad Viewer (v5)</h1>
+    <button id="toggle-quad-view">WebXR Quad View</button>
 </header>
 
 <div id="main-container"></div>
@@ -98,26 +47,24 @@
 
 <script>
     const container = document.getElementById('main-container');
-    const exitQuadBtn = document.getElementById('exit-quad-btn');
-    const toggleQuadBtn = document.getElementById('toggle-quad-view');
-
-    // 4つのパネルを生成
+    
+    // 4画面生成
     for (let i = 0; i < 4; i++) {
         const panel = document.createElement('div');
         panel.className = 'panel';
         panel.id = `panel-${i}`;
         panel.innerHTML = `
             <div class="toolbar">
-                <span style="font-size:12px; color:#888; margin-right:auto;">ID: ${i+1}</span>
+                <span style="color:#666; font-size:10px; margin-right:auto; align-self:center;">#${i+1}</span>
                 <button class="btn-run" onclick="runCode(${i})">▶ 実行</button>
                 <button onclick="pasteCode(${i})">📋 ペースト</button>
                 <button onclick="copyCode(${i})">📑 コピー</button>
-                <button id="btn-cam-${i}" class="btn-cam" onclick="toggleCamera(${i})">📷 自由カメラ: OFF</button>
+                <button id="btn-cam-${i}" class="btn-cam" onclick="toggleCamera(${i})">📷 自由視点: OFF</button>
                 <button onclick="toggleFullscreen(${i})">⛶ 最大化</button>
             </div>
             <div class="workspace">
                 <div class="editor-container">
-                    <textarea id="code-${i}" placeholder="// ここにコードをペーストしてください..."></textarea>
+                    <textarea id="code-${i}" placeholder="// ここにコードをペースト"></textarea>
                 </div>
                 <div class="preview-container">
                     <iframe id="frame-${i}"></iframe>
@@ -127,7 +74,7 @@
         container.appendChild(panel);
     }
 
-    // --- Actions ---
+    // --- 機能実装 ---
 
     function runCode(index) {
         const textarea = document.getElementById(`code-${index}`);
@@ -135,60 +82,57 @@
         const rawCode = textarea.value;
         const safeCode = rawCode.replace(/\\/g, '\\\\').replace(/`/g, '\\`').replace(/\${/g, '\\${');
         
-        // Iframeリセット
-        frame.srcdoc = createIframeContent(safeCode);
-        
-        // カメラボタンの状態をリセット
+        // 自由カメラボタンのリセット
         const btn = document.getElementById(`btn-cam-${index}`);
         btn.classList.remove('active');
-        btn.innerText = "📷 自由カメラ: OFF";
+        btn.innerText = "📷 自由視点: OFF";
+        
+        frame.srcdoc = createIframeContent(safeCode);
     }
 
     async function pasteCode(index) {
         try {
             const text = await navigator.clipboard.readText();
             document.getElementById(`code-${index}`).value = text;
-        } catch (err) { alert('ペースト権限がありません。Ctrl+Vを使用してください。'); }
+        } catch (e) { alert('クリップボード操作が許可されていません'); }
     }
 
     function copyCode(index) {
-        const textarea = document.getElementById(`code-${index}`);
-        textarea.select(); document.execCommand('copy');
-        if (navigator.clipboard) navigator.clipboard.writeText(textarea.value);
+        const t = document.getElementById(`code-${index}`);
+        t.select(); document.execCommand('copy');
+        if(navigator.clipboard) navigator.clipboard.writeText(t.value);
     }
 
     function toggleFullscreen(index) { document.getElementById(`panel-${index}`).classList.toggle('fullscreen'); }
 
-    // カメラトグル処理 (Iframeにメッセージを送る)
     function toggleCamera(index) {
         const frame = document.getElementById(`frame-${index}`);
         const btn = document.getElementById(`btn-cam-${index}`);
         const isActive = btn.classList.contains('active');
         
-        if (frame && frame.contentWindow) {
+        if (frame.contentWindow) {
             frame.contentWindow.postMessage({ type: 'toggle-camera', value: !isActive }, '*');
-            
             if (!isActive) {
                 btn.classList.add('active');
-                btn.innerText = "📷 自由カメラ: ON";
+                btn.innerText = "📷 自由視点: ON";
             } else {
                 btn.classList.remove('active');
-                btn.innerText = "📷 自由カメラ: OFF";
+                btn.innerText = "📷 自由視点: OFF";
             }
         }
     }
 
-    toggleQuadBtn.addEventListener('click', () => {
+    // Quad View Toggle
+    document.getElementById('toggle-quad-view').onclick = () => {
         document.body.classList.add('mode-quad-anim');
-        exitQuadBtn.style.display = 'block';
-    });
-    exitQuadBtn.addEventListener('click', () => {
+        document.getElementById('exit-quad-btn').style.display = 'block';
+    };
+    document.getElementById('exit-quad-btn').onclick = () => {
         document.body.classList.remove('mode-quad-anim');
-        exitQuadBtn.style.display = 'none';
-    });
+        document.getElementById('exit-quad-btn').style.display = 'none';
+    };
 
-    // --- Iframe Generator ---
-
+    // --- Iframeの中身（魔法の部分） ---
     function createIframeContent(userCode) {
         return `
             <!DOCTYPE html>
@@ -197,161 +141,126 @@
                 <style>
                     body { margin: 0; overflow: hidden; background: #000; }
                     canvas { width: 100% !important; height: 100% !important; display: block; }
-                    #error-msg {
-                        position: absolute; top: 0; left: 0; width: 100%;
-                        background: rgba(200,0,0,0.9); color: white; padding: 10px;
-                        font-family: monospace; font-size: 12px; display: none; z-index: 9999;
-                        white-space: pre-wrap; box-sizing: border-box;
-                    }
-                    #cam-status {
-                        position: absolute; bottom: 10px; left: 10px;
-                        background: rgba(0,0,0,0.5); color: #4caf50; padding: 4px 8px;
-                        font-family: sans-serif; font-size: 12px; border-radius: 4px; pointer-events: none;
-                        display: none;
-                    }
+                    #msg { position: absolute; top: 0; left: 0; background: rgba(200,0,0,0.8); color: white; padding: 5px; font-size: 11px; display: none; }
                 </style>
             </head>
             <body>
-                <div id="error-msg"></div>
-                <div id="cam-status">Free Camera Active (Left: Rotate, Right: Pan)</div>
-                
+                <div id="msg"></div>
                 <script type="importmap">
-                    {
-                        "imports": {
-                            "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-                            "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
-                        }
-                    }
+                    { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js", "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/" } }
                 <\/script>
-
                 <script type="module">
                     import * as THREE from 'three';
                     import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-                    const errorEl = document.getElementById('error-msg');
-                    const camStatusEl = document.getElementById('cam-status');
+                    // エラー表示
+                    window.onerror = (m) => { const e = document.getElementById('msg'); e.style.display='block'; e.innerText='Error: '+m; };
 
-                    // エラーハンドラー
-                    function showError(msg) {
-                        errorEl.style.display = 'block';
-                        errorEl.innerText = '⚠️ ' + msg;
-                    }
-                    window.onerror = function(msg, src, line, col, error) {
-                        showError(msg);
-                    };
-
-                    // --- Setup ---
+                    // 1. 基本セットアップ
                     const scene = new THREE.Scene();
                     scene.background = new THREE.Color(0x111111);
-                    scene.fog = new THREE.Fog(0x111111, 2, 30);
+                    scene.fog = new THREE.Fog(0x111111, 2, 50);
 
-                    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 100);
-                    camera.position.set(0, 1.6, 0);
+                    // ユーザー用のカメラ (コードで操作される)
+                    const userCamera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 100);
+                    userCamera.position.set(0, 1.6, 0);
 
+                    // 自由視点用のカメラ
+                    const freeCamera = userCamera.clone();
+                    
                     const renderer = new THREE.WebGLRenderer({ antialias: true });
                     renderer.setSize(window.innerWidth, window.innerHeight);
                     renderer.shadowMap.enabled = true;
                     renderer.xr.enabled = true;
                     document.body.appendChild(renderer.domElement);
 
-                    // --- Controls ---
-                    const controls = new OrbitControls(camera, renderer.domElement);
-                    controls.enableDamping = true;
-                    controls.dampingFactor = 0.05;
+                    // 自由視点コントロール
+                    const controls = new OrbitControls(freeCamera, renderer.domElement);
                     controls.target.set(0, 1.6, -5);
-                    controls.enabled = false; // デフォルトはOFF (コードのカメラワーク優先)
+                    controls.enableDamping = true;
+                    controls.enabled = false;
 
-                    // 親ウィンドウからのメッセージ受信 (カメラ切替)
-                    window.addEventListener('message', (event) => {
-                        if (event.data.type === 'toggle-camera') {
-                            const active = event.data.value;
-                            controls.enabled = active;
-                            camStatusEl.style.display = active ? 'block' : 'none';
-                            
-                            // 自由カメラONになった瞬間、今のカメラ位置を維持しつつターゲットを再調整
-                            if (active) {
-                                // ターゲットをカメラの前方にリセットして操作しやすくする
-                                const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
-                                controls.target.copy(camera.position).add(forward.multiplyScalar(5));
-                            }
+                    // 2. 環境 (ユーザーが何もしなくても見えるように)
+                    scene.add(new THREE.AmbientLight(0x404040, 2));
+                    const dl = new THREE.DirectionalLight(0xffffff, 2);
+                    dl.position.set(5, 10, 7); dl.castShadow = true; scene.add(dl);
+                    scene.add(new THREE.GridHelper(20, 20, 0x444444, 0x222222));
+                    const floor = new THREE.Mesh(new THREE.PlaneGeometry(20,20), new THREE.MeshStandardMaterial({color:0x222222}));
+                    floor.rotation.x = -Math.PI/2; floor.receiveShadow = true; scene.add(floor);
+
+                    // 3. マジック: renderer.render の乗っ取り
+                    // これにより、ユーザーがどんなループを回しても、ここでカメラをすり替える
+                    const realRender = renderer.render.bind(renderer);
+                    let isFreeCam = false;
+
+                    renderer.render = function(scene, camera) {
+                        if (isFreeCam) {
+                            controls.update(); // 慣性のため
+                            realRender(scene, freeCamera);
+                        } else {
+                            realRender(scene, camera);
                         }
-                    });
+                    };
 
-                    // --- Default Environment ---
-                    const ambientLight = new THREE.AmbientLight(0x404040, 2); 
-                    scene.add(ambientLight);
+                    // 4. マジック: ユーザーがループを開始したか監視
+                    const realSetAnimLoop = renderer.setAnimationLoop.bind(renderer);
+                    let userLoopStarted = false;
+                    
+                    renderer.setAnimationLoop = function(callback) {
+                        userLoopStarted = true;
+                        realSetAnimLoop(callback);
+                    };
 
-                    const dirLight = new THREE.DirectionalLight(0xffffff, 2);
-                    dirLight.position.set(5, 10, 7);
-                    dirLight.castShadow = true;
-                    scene.add(dirLight);
-
-                    const gridHelper = new THREE.GridHelper(20, 20, 0x444444, 0x222222);
-                    scene.add(gridHelper);
-
-                    const floor = new THREE.Mesh(
-                        new THREE.PlaneGeometry(20, 20),
-                        new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.8 })
-                    );
-                    floor.rotation.x = -Math.PI / 2;
-                    floor.receiveShadow = true;
-                    scene.add(floor);
-
-                    window.addEventListener('resize', () => {
-                        camera.aspect = window.innerWidth / window.innerHeight;
-                        camera.updateProjectionMatrix();
-                        renderer.setSize(window.innerWidth, window.innerHeight);
-                    });
-
-                    // --- Global Exposure for User Code ---
-                    // ユーザーコードが global な scene 等を参照する場合のために紐付け
+                    // グローバル変数公開 (ユーザーコード用)
                     window.THREE = THREE;
                     window.scene = scene;
-                    window.camera = camera;
+                    window.camera = userCamera; // ここ重要: ユーザーコードは userCamera を操作する
                     window.renderer = renderer;
 
-                    // --- User Code Injection ---
-                    let userUpdate = null;
-
+                    // 5. ユーザーコード注入
                     try {
                         ${userCode}
+                    } catch(e) { console.error(e); document.getElementById('msg').innerText = e.message; document.getElementById('msg').style.display='block'; }
 
-                        // update関数の検出
-                        if (typeof update === 'function') userUpdate = update;
-                        else if (typeof window.update === 'function') userUpdate = window.update;
-                    } catch (e) {
-                        showError("Script Init Error: " + e.message);
-                        console.error(e);
+                    // 6. フォールバックループ
+                    // ユーザーが setAnimationLoop を呼んでいない場合、または update 関数だけ定義している場合への対応
+                    if (!userLoopStarted) {
+                        const clock = new THREE.Clock();
+                        // ユーザーが update 関数を定義しているかチェック
+                        const userUpdate = (typeof update === 'function') ? update : ((typeof window.update === 'function') ? window.update : null);
+
+                        renderer.setAnimationLoop(() => {
+                            const time = clock.getElapsedTime();
+                            if (userUpdate) {
+                                try { userUpdate(time); } catch(e){}
+                            }
+                            // ユーザーが自分で render() を呼んでいない場合のためにここで呼ぶ
+                            // (呼んでいても多重描画になるだけでエラーにはならない)
+                            renderer.render(scene, userCamera);
+                        });
                     }
 
-                    // --- Animation Loop ---
-                    const clock = new THREE.Clock();
-                    let errorShown = false; // エラーを一度だけ表示するフラグ
-
-                    renderer.setAnimationLoop(() => {
-                        const time = clock.getElapsedTime();
-                        
-                        // 1. ユーザー定義のアニメーション
-                        if (userUpdate) {
-                            try {
-                                userUpdate(time);
-                            } catch(e) {
-                                if (!errorShown) {
-                                    showError("Runtime Error in update(): " + e.message);
-                                    console.error("Runtime Error:", e);
-                                    errorShown = true;
-                                }
+                    // 7. カメラ切替イベント受信
+                    window.addEventListener('message', (e) => {
+                        if (e.data.type === 'toggle-camera') {
+                            isFreeCam = e.data.value;
+                            controls.enabled = isFreeCam;
+                            if (isFreeCam) {
+                                // 自由カメラON時、現在のユーザーカメラの位置を引き継ぐ
+                                freeCamera.position.copy(userCamera.position);
+                                freeCamera.rotation.copy(userCamera.rotation);
+                                // ターゲットを少し前に設定しなおす
+                                const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(userCamera.quaternion);
+                                controls.target.copy(userCamera.position).add(forward.multiplyScalar(5));
                             }
                         }
-
-                        // 2. 自由カメラモードの制御更新
-                        if (controls.enabled) {
-                            controls.update();
-                        }
-
-                        // 3. レンダリング
-                        renderer.render(scene, camera);
                     });
+                    
+                    window.onresize = () => {
+                        userCamera.aspect = freeCamera.aspect = window.innerWidth/window.innerHeight;
+                        userCamera.updateProjectionMatrix(); freeCamera.updateProjectionMatrix();
+                        renderer.setSize(window.innerWidth, window.innerHeight);
+                    };
                 <\/script>
             </body>
             </html>
