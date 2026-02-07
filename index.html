@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WebXR Three.js Quad Viewer</title>
+    <title>WebXR Three.js Quad Viewer (v2)</title>
     <style>
         :root {
             --bg-color: #121212;
@@ -26,7 +26,6 @@
             overflow: hidden;
         }
 
-        /* Header */
         header {
             height: var(--header-height);
             display: flex;
@@ -50,7 +49,6 @@
         }
         .global-controls button:hover { background-color: #1976D2; }
 
-        /* Main Grid */
         #main-container {
             flex: 1;
             display: grid;
@@ -58,10 +56,8 @@
             grid-template-rows: 1fr 1fr;
             gap: 2px;
             background-color: var(--border-color);
-            position: relative;
         }
 
-        /* Individual Panel */
         .panel {
             background-color: var(--panel-bg);
             display: flex;
@@ -71,17 +67,12 @@
             min-height: 0;
         }
 
-        /* Fullscreen Mode for a single panel */
         .panel.fullscreen {
             position: fixed;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
+            top: 0; left: 0; width: 100vw; height: 100vh;
             z-index: 1000;
         }
 
-        /* Toolbar */
         .toolbar {
             display: flex;
             gap: 8px;
@@ -99,16 +90,11 @@
             border-radius: 3px;
             cursor: pointer;
             font-size: 12px;
-            display: flex;
-            align-items: center;
-            gap: 4px;
         }
-        
         .toolbar button:hover { background-color: #444; }
         .toolbar button.btn-run { background-color: var(--accent-color); color: white; border-color: var(--accent-color); }
         .toolbar button.btn-run:hover { background-color: #45a049; }
 
-        /* Split View (Editor vs Preview) */
         .workspace {
             flex: 1;
             display: flex;
@@ -152,43 +138,28 @@
             display: block;
         }
 
-        /* Quad Animation Mode (Hide Editors) */
-        body.mode-quad-anim .editor-container {
-            display: none !important;
-        }
-        body.mode-quad-anim .toolbar {
-            display: none !important;
-        }
-        /* Button to exit quad mode */
+        body.mode-quad-anim .editor-container, 
+        body.mode-quad-anim .toolbar { display: none !important; }
+        
         #exit-quad-btn {
             display: none;
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            z-index: 2000;
+            position: fixed; bottom: 20px; right: 20px; z-index: 2000;
             background-color: rgba(255, 68, 68, 0.9);
-            color: white;
-            padding: 10px 20px;
-            border: none;
-            border-radius: 20px;
-            cursor: pointer;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+            color: white; padding: 10px 20px; border: none; border-radius: 20px;
+            cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.5);
         }
-
     </style>
 </head>
 <body>
 
 <header>
-    <h1>WebXR(VR) Code Viewer (3 Pro Generator)</h1>
+    <h1>WebXR Quad Viewer (Fix v2)</h1>
     <div class="global-controls">
         <button id="toggle-quad-view">WebXR Quad View (Anim Only)</button>
     </div>
 </header>
 
-<div id="main-container">
-    </div>
-
+<div id="main-container"></div>
 <button id="exit-quad-btn">Exit Quad View</button>
 
 <script>
@@ -196,7 +167,7 @@
     const exitQuadBtn = document.getElementById('exit-quad-btn');
     const toggleQuadBtn = document.getElementById('toggle-quad-view');
 
-    // 4つのパネルを生成
+    // パネル生成
     for (let i = 0; i < 4; i++) {
         const panel = document.createElement('div');
         panel.className = 'panel';
@@ -211,7 +182,7 @@
             </div>
             <div class="workspace">
                 <div class="editor-container">
-                    <textarea id="code-${i}" placeholder="// ここに生成されたコードを貼り付けてください..."></textarea>
+                    <textarea id="code-${i}" placeholder="// ここにコードをペーストしてください..."></textarea>
                 </div>
                 <div class="preview-container">
                     <iframe id="frame-${i}"></iframe>
@@ -221,47 +192,35 @@
         container.appendChild(panel);
     }
 
-    // --- Actions ---
-
     function runCode(index) {
-        const code = document.getElementById(`code-${index}`).value;
+        const textarea = document.getElementById(`code-${index}`);
         const frame = document.getElementById(`frame-${index}`);
+        // ユーザーコード内のバッククォートをエスケープしてテンプレートリテラルの破損を防ぐ
+        const rawCode = textarea.value;
+        const safeCode = rawCode.replace(/\\/g, '\\\\').replace(/`/g, '\\`').replace(/\${/g, '\\${');
         
-        // Iframeの中身を生成
-        const htmlContent = createIframeContent(code);
-        frame.srcdoc = htmlContent;
+        frame.srcdoc = createIframeContent(safeCode);
     }
 
     async function pasteCode(index) {
         try {
             const text = await navigator.clipboard.readText();
-            const textarea = document.getElementById(`code-${index}`);
-            textarea.value = text;
-            // 自動的に実行する場合はコメントアウトを外す
-            // runCode(index); 
+            document.getElementById(`code-${index}`).value = text;
         } catch (err) {
-            alert('クリップボードからの読み込みに失敗しました。権限を確認するか、Ctrl+Vを使用してください。');
+            alert('ペースト権限がありません。Ctrl+Vを使用してください。');
         }
     }
 
     function copyCode(index) {
         const textarea = document.getElementById(`code-${index}`);
         textarea.select();
-        document.execCommand('copy'); // Fallback for older browsers
-        // Modern API fallback
-        if (navigator.clipboard) {
-            navigator.clipboard.writeText(textarea.value).then(() => {
-                // Success feedback if needed
-            });
-        }
+        document.execCommand('copy');
+        if (navigator.clipboard) navigator.clipboard.writeText(textarea.value);
     }
 
     function toggleFullscreen(index) {
-        const panel = document.getElementById(`panel-${index}`);
-        panel.classList.toggle('fullscreen');
+        document.getElementById(`panel-${index}`).classList.toggle('fullscreen');
     }
-
-    // --- Global View Mode ---
 
     toggleQuadBtn.addEventListener('click', () => {
         document.body.classList.add('mode-quad-anim');
@@ -273,8 +232,6 @@
         exitQuadBtn.style.display = 'none';
     });
 
-    // --- Iframe Template Generator ---
-
     function createIframeContent(userCode) {
         return `
             <!DOCTYPE html>
@@ -283,30 +240,41 @@
                 <style>
                     body { margin: 0; overflow: hidden; background: #000; }
                     canvas { width: 100% !important; height: 100% !important; display: block; }
+                    #error-msg {
+                        position: absolute; top: 0; left: 0; width: 100%;
+                        background: rgba(255,0,0,0.8); color: white; padding: 10px;
+                        font-family: monospace; font-size: 12px; display: none; z-index: 9999;
+                        white-space: pre-wrap;
+                    }
                 </style>
             </head>
             <body>
+                <div id="error-msg"></div>
                 <script type="module">
+                    // エラーハンドリング
+                    window.onerror = function(message, source, lineno, colno, error) {
+                        const el = document.getElementById('error-msg');
+                        el.style.display = 'block';
+                        el.innerText = 'Error: ' + message;
+                    };
+
                     import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
 
-                    // --- Setup Boilerplate ---
+                    // 基本設定
                     const scene = new THREE.Scene();
                     scene.background = new THREE.Color(0x111111);
-                    // Fog to blend floor
-                    scene.fog = new THREE.Fog(0x111111, 2, 20);
+                    scene.fog = new THREE.Fog(0x111111, 2, 25); // 奥行き感を出すフォグ
 
                     const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 100);
-                    // User starts at 1.6m height
                     camera.position.set(0, 1.6, 0);
 
                     const renderer = new THREE.WebGLRenderer({ antialias: true });
                     renderer.setSize(window.innerWidth, window.innerHeight);
                     renderer.shadowMap.enabled = true;
-                    renderer.xr.enabled = true; // VR Ready logic
+                    renderer.xr.enabled = true;
                     document.body.appendChild(renderer.domElement);
 
-                    // --- Default Environment (Lights & Floor) ---
-                    // ユーザーがライトを忘れても見えるように最低限の環境光
+                    // ライトと床 (ユーザーが定義しなくても見えるように)
                     const ambientLight = new THREE.AmbientLight(0x404040, 2); 
                     scene.add(ambientLight);
 
@@ -315,60 +283,59 @@
                     dirLight.castShadow = true;
                     scene.add(dirLight);
 
-                    // Grid helper for context
-                    const gridHelper = new THREE.GridHelper(20, 20, 0x444444, 0x222222);
-                    scene.add(gridHelper);
-
-                    // Floor to receive shadows
-                    const floorGeo = new THREE.PlaneGeometry(20, 20);
-                    const floorMat = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.8 });
-                    const floor = new THREE.Mesh(floorGeo, floorMat);
+                    const grid = new THREE.GridHelper(20, 20, 0x444444, 0x222222);
+                    scene.add(grid);
+                    
+                    const floor = new THREE.Mesh(
+                        new THREE.PlaneGeometry(20, 20),
+                        new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.8 })
+                    );
                     floor.rotation.x = -Math.PI / 2;
                     floor.receiveShadow = true;
                     scene.add(floor);
 
-                    // Window Resize Handle
                     window.addEventListener('resize', () => {
                         camera.aspect = window.innerWidth / window.innerHeight;
                         camera.updateProjectionMatrix();
                         renderer.setSize(window.innerWidth, window.innerHeight);
                     });
 
-                    // --- Variable Exposure for User Code ---
-                    // Module scope variables need to be explicitly available if user code relies on specific scope behavior,
-                    // but since we are injecting code below, they are naturally available in this block.
-
-                    // Placeholder for user's update function
+                    // ユーザー定義のupdate関数を保持する変数
                     let userUpdate = null;
 
-                    // --- User Code Injection ---
+                    // --- ユーザーコード注入 ---
                     try {
-                        // Wrapping user code to handle "function update()" definition safely
-                        // Using Function constructor or eval is risky in production but standard for code playgrounds.
-                        // Here we just insert the string directly into the module script via template literal works best for scope sharing.
+                        // ユーザーコード実行ブロック
+                        // scene, camera, renderer, THREE はこのスコープで利用可能
+                        ${userCode}
+
+                        // update関数が存在するかチェック
+                        if (typeof update === 'function') {
+                            userUpdate = update;
+                        } else {
+                            console.log("No 'update(time)' function found in user code.");
+                        }
                     } catch (e) {
-                        console.error("Setup Error:", e);
+                        const el = document.getElementById('error-msg');
+                        el.style.display = 'block';
+                        el.innerText = 'Script Error: ' + e.message + '\\n(変数の再定義などを確認してください)';
+                        console.error(e);
+                        throw e; 
                     }
 
-                    // *** INJECTED USER CODE START ***
-                    ${userCode}
-                    // *** INJECTED USER CODE END ***
-
-                    // Check if 'update' function exists from user code
-                    if (typeof update === 'function') {
-                        userUpdate = update;
-                    }
-
-                    // --- Animation Loop ---
+                    // --- アニメーションループ ---
                     const clock = new THREE.Clock();
+                    
                     renderer.setAnimationLoop(() => {
                         const time = clock.getElapsedTime();
                         
+                        // ユーザーのアニメーション関数を実行
                         if (userUpdate) {
                             try {
                                 userUpdate(time);
                             } catch(e) {
-                                // Prevent crashing loop on error
+                                // ループ内でエラーが出たら停止せずログだけ出す(頻繁に出るので注意)
+                                console.error(e);
                             }
                         }
                         
@@ -380,6 +347,5 @@
         `;
     }
 </script>
-
 </body>
 </html>
