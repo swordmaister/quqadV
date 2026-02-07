@@ -88,8 +88,8 @@ scene.add(cube);
 
 // この update 関数が毎フレーム自動で呼ばれます
 function update(time) {
-    cube.rotation.x = time * 0.5;
-    cube.rotation.y = time;
+    cube.rotation.x = time * 0.0005;
+    cube.rotation.y = time * 0.001;
 }`;
         document.getElementById(`code-${index}`).value = sampleCode;
         runCode(index);
@@ -152,7 +152,7 @@ function update(time) {
         document.getElementById('exit-quad-btn').style.display = 'none';
     };
 
-    // --- Iframeの中身（改善版：function update()も検出） ---
+    // --- Iframeの中身（ミリ秒単位対応版） ---
     function createIframeContent(userCode) {
         return `
             <!DOCTYPE html>
@@ -232,28 +232,22 @@ function update(time) {
                     window.scene = scene;
                     window.camera = userCamera;
                     window.renderer = renderer;
+                    window.controls = controls;
 
-                    // ★ 改善：ユーザーコードを文字列解析して update 関数を自動検出
+                    // ★ ユーザーコード実行（ミリ秒単位対応）
+                    let localUpdateFunction = null;
+                    
                     try {
-                        // まずユーザーコードをそのまま実行
-                        const wrappedCode = \`
-                            (function() {
-                                ${userCode}
-                                
-                                // update関数が定義されているか確認して返す
-                                if (typeof update === 'function') {
-                                    return update;
-                                }
-                                return null;
-                            })()
-                        \`;
+                        eval(\`
+                            ${userCode}
+                            
+                            if (typeof update === 'function') {
+                                localUpdateFunction = update;
+                            }
+                        \`);
                         
-                        const evalFunc = new Function('THREE', 'scene', 'camera', 'renderer', 'return ' + wrappedCode);
-                        const detectedUpdate = evalFunc(THREE, scene, userCamera, renderer);
-                        
-                        // 検出されたupdate関数をグローバルに登録
-                        if (detectedUpdate && typeof window.update !== 'function') {
-                            window.update = detectedUpdate;
+                        if (localUpdateFunction) {
+                            window.update = localUpdateFunction;
                         }
                     } catch(e) { 
                         console.error(e); 
@@ -261,17 +255,15 @@ function update(time) {
                         document.getElementById('msg').style.display='block';
                     }
 
-                    // フォールバックループ
+                    // ★ フォールバックループ（ミリ秒単位で渡す）
                     setTimeout(() => {
                         if (!userLoopActive) {
-                            const clock = new THREE.Clock();
-                            
-                            renderer.setAnimationLoop(() => {
-                                const time = clock.getElapsedTime();
+                            renderer.setAnimationLoop((time) => {
+                                // time は DOMHighResTimeStamp（ミリ秒単位）
                                 
                                 if (typeof window.update === 'function') {
                                     try { 
-                                        window.update(time); 
+                                        window.update(time); // ミリ秒単位で渡す
                                     } catch(e) {
                                         console.error('Update error:', e);
                                     }
