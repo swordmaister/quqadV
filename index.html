@@ -132,7 +132,7 @@
         document.getElementById('exit-quad-btn').style.display = 'none';
     };
 
-    // --- Iframeの中身（魔法の部分） ---
+    // --- Iframeの中身（修正版） ---
     function createIframeContent(userCode) {
         return `
             <!DOCTYPE html>
@@ -153,19 +153,15 @@
                     import * as THREE from 'three';
                     import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-                    // エラー表示
                     window.onerror = (m) => { const e = document.getElementById('msg'); e.style.display='block'; e.innerText='Error: '+m; };
 
-                    // 1. 基本セットアップ
                     const scene = new THREE.Scene();
                     scene.background = new THREE.Color(0x111111);
                     scene.fog = new THREE.Fog(0x111111, 2, 50);
 
-                    // ユーザー用のカメラ (コードで操作される)
                     const userCamera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 100);
                     userCamera.position.set(0, 1.6, 0);
 
-                    // 自由視点用のカメラ
                     const freeCamera = userCamera.clone();
                     
                     const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -174,13 +170,11 @@
                     renderer.xr.enabled = true;
                     document.body.appendChild(renderer.domElement);
 
-                    // 自由視点コントロール
                     const controls = new OrbitControls(freeCamera, renderer.domElement);
                     controls.target.set(0, 1.6, -5);
                     controls.enableDamping = true;
                     controls.enabled = false;
 
-                    // 2. 環境 (ユーザーが何もしなくても見えるように)
                     scene.add(new THREE.AmbientLight(0x404040, 2));
                     const dl = new THREE.DirectionalLight(0xffffff, 2);
                     dl.position.set(5, 10, 7); dl.castShadow = true; scene.add(dl);
@@ -188,68 +182,75 @@
                     const floor = new THREE.Mesh(new THREE.PlaneGeometry(20,20), new THREE.MeshStandardMaterial({color:0x222222}));
                     floor.rotation.x = -Math.PI/2; floor.receiveShadow = true; scene.add(floor);
 
-                    // 3. マジック: renderer.render の乗っ取り
-                    // これにより、ユーザーがどんなループを回しても、ここでカメラをすり替える
                     const realRender = renderer.render.bind(renderer);
                     let isFreeCam = false;
+                    let userRenderCalled = false;
 
                     renderer.render = function(scene, camera) {
+                        userRenderCalled = true;
                         if (isFreeCam) {
-                            controls.update(); // 慣性のため
+                            controls.update();
                             realRender(scene, freeCamera);
                         } else {
                             realRender(scene, camera);
                         }
                     };
 
-                    // 4. マジック: ユーザーがループを開始したか監視
                     const realSetAnimLoop = renderer.setAnimationLoop.bind(renderer);
-                    let userLoopStarted = false;
+                    let userLoopActive = false;
                     
                     renderer.setAnimationLoop = function(callback) {
-                        userLoopStarted = true;
+                        userLoopActive = !!callback;
                         realSetAnimLoop(callback);
                     };
 
-                    // グローバル変数公開 (ユーザーコード用)
                     window.THREE = THREE;
                     window.scene = scene;
-                    window.camera = userCamera; // ここ重要: ユーザーコードは userCamera を操作する
+                    window.camera = userCamera;
                     window.renderer = renderer;
 
-                    // 5. ユーザーコード注入
+                    // ★ ユーザーコードを実行
                     try {
                         ${userCode}
-                    } catch(e) { console.error(e); document.getElementById('msg').innerText = e.message; document.getElementById('msg').style.display='block'; }
-
-                    // 6. フォールバックループ
-                    // ユーザーが setAnimationLoop を呼んでいない場合、または update 関数だけ定義している場合への対応
-                    if (!userLoopStarted) {
-                        const clock = new THREE.Clock();
-                        // ユーザーが update 関数を定義しているかチェック
-                        const userUpdate = (typeof update === 'function') ? update : ((typeof window.update === 'function') ? window.update : null);
-
-                        renderer.setAnimationLoop(() => {
-                            const time = clock.getElapsedTime();
-                            if (userUpdate) {
-                                try { userUpdate(time); } catch(e){}
-                            }
-                            // ユーザーが自分で render() を呼んでいない場合のためにここで呼ぶ
-                            // (呼んでいても多重描画になるだけでエラーにはならない)
-                            renderer.render(scene, userCamera);
-                        });
+                    } catch(e) { 
+                        console.error(e); 
+                        document.getElementById('msg').innerText = e.message; 
+                        document.getElementById('msg').style.display='block'; 
                     }
 
-                    // 7. カメラ切替イベント受信
+                    // ★ フォールバックループ (ユーザーコード実行後に判定)
+                    setTimeout(() => {
+                        if (!userLoopActive) {
+                            const clock = new THREE.Clock();
+                            
+                            renderer.setAnimationLoop(() => {
+                                const time = clock.getElapsedTime();
+                                
+                                // グローバルスコープの update 関数を探す
+                                if (typeof window.update === 'function') {
+                                    try { 
+                                        window.update(time); 
+                                    } catch(e) {
+                                        console.error('Update error:', e);
+                                    }
+                                }
+                                
+                                // ユーザーが render を呼んでいない場合のみ描画
+                                if (!userRenderCalled) {
+                                    renderer.render(scene, userCamera);
+                                }
+                                userRenderCalled = false; // 次フレーム用にリセット
+                            });
+                        }
+                    }, 100); // ユーザーコードの初期化を待つ
+
                     window.addEventListener('message', (e) => {
                         if (e.data.type === 'toggle-camera') {
                             isFreeCam = e.data.value;
                             controls.enabled = isFreeCam;
                             if (isFreeCam) {
-                                // 自由カメラON時、現在のユーザーカメラの位置を引き継ぐ
                                 freeCamera.position.copy(userCamera.position);
                                 freeCamera.rotation.copy(userCamera.rotation);
-                                // ターゲットを少し前に設定しなおす
                                 const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(userCamera.quaternion);
                                 controls.target.copy(userCamera.position).add(forward.multiplyScalar(5));
                             }
