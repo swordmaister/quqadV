@@ -87,10 +87,10 @@ cube.castShadow = true;
 scene.add(cube);
 
 // この update 関数が毎フレーム自動で呼ばれます
-window.update = function(time) {
+function update(time) {
     cube.rotation.x = time * 0.5;
     cube.rotation.y = time;
-};`;
+}`;
         document.getElementById(`code-${index}`).value = sampleCode;
         runCode(index);
     }
@@ -152,7 +152,7 @@ window.update = function(time) {
         document.getElementById('exit-quad-btn').style.display = 'none';
     };
 
-    // --- Iframeの中身 ---
+    // --- Iframeの中身（改善版：function update()も検出） ---
     function createIframeContent(userCode) {
         return `
             <!DOCTYPE html>
@@ -233,23 +233,27 @@ window.update = function(time) {
                     window.camera = userCamera;
                     window.renderer = renderer;
 
-                    // ユーザーコード実行
+                    // ★ 改善：ユーザーコードを文字列解析して update 関数を自動検出
                     try {
-                        const userFunction = new Function('THREE', 'scene', 'camera', 'renderer', 'window', \`
-                            ${userCode}
-                            
-                            // もし update 関数がローカルで定義されていたら、それを返す
-                            if (typeof update === 'function') {
-                                return update;
-                            }
-                            return null;
-                        \`);
+                        // まずユーザーコードをそのまま実行
+                        const wrappedCode = \`
+                            (function() {
+                                ${userCode}
+                                
+                                // update関数が定義されているか確認して返す
+                                if (typeof update === 'function') {
+                                    return update;
+                                }
+                                return null;
+                            })()
+                        \`;
                         
-                        const localUpdate = userFunction(THREE, scene, userCamera, renderer, window);
+                        const evalFunc = new Function('THREE', 'scene', 'camera', 'renderer', 'return ' + wrappedCode);
+                        const detectedUpdate = evalFunc(THREE, scene, userCamera, renderer);
                         
-                        // ローカルの update を window.update に登録
-                        if (localUpdate && typeof window.update !== 'function') {
-                            window.update = localUpdate;
+                        // 検出されたupdate関数をグローバルに登録
+                        if (detectedUpdate && typeof window.update !== 'function') {
+                            window.update = detectedUpdate;
                         }
                     } catch(e) { 
                         console.error(e); 
